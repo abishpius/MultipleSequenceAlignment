@@ -1,0 +1,70 @@
+import numpy as np
+import sys
+from Bio.Seq import Seq
+from Bio.Alphabet import IUPAC
+from Bio.SeqRecord import SeqRecord
+from Bio import SeqIO
+from Bio import Entrez
+from Bio.Align.Applications import ClustalwCommandline
+from Bio.Align import AlignInfo
+from Bio import AlignIO
+
+
+Entrez.email = "sample@pitt.edu" #biopython forces you to provide your email! So use your own!
+
+#Fetch the Fasta file format of the protein(s) of interest
+result = Entrez.esearch(db='protein', term=sys.argv[1]) #DB refers to NCBI databases, can be gene or rna but we stick with protein here
+records = Entrez.read(result)
+searchresults = Entrez.efetch(db='protein', id =records['IdList'], rettype = 'fasta', retmode = 'text').read().rstrip()
+file = open('searchresults.fasta', 'w')
+file.write(searchresults)
+file.close()
+
+#Aline all the returned amino acid sequences using Clustal
+cline = ClustalwCommandline('clustalw', infile = 'searchresults.fasta', outfile = 'align.aln')
+output = cline()
+#!head alignment.aln
+
+#Compute the most common amino acid sequences of the proteins selected, ie. a Concensus Sequence
+align = AlignIO.read('align.aln','clustal')
+summary = AlignInfo.SummaryInfo(align)
+consensus = summary.gap_consensus(threshold = 0)
+print (consensus)
+
+#Print out the ten aligned sequences that that have the most in common with the non-gaps of this consensus sequence
+cnts2 = 0
+ts = []
+st = []
+its = []
+
+for n in list(range(20)):
+    cnts2 = 0
+    for (i,j) in zip(str(align[n].seq),consensus):
+        if i.isalpha() == True and j.isalpha() == True:
+            if i == j:
+                cnts2 +=1 
+        else:
+            pass
+    ts.append(cnts2)
+    st.append(str(align[n].seq))
+    its.append(str(align[n].id))
+
+def merge(list1, list2, list3):  
+    merged_list = [(list1[i], list2[i], list3[i]) for i in range(0, len(list1))] 
+    return merged_list 
+class reversor:
+    def __init__(self, obj):
+        self.obj = obj
+
+    def __eq__(self, other):
+        return other.obj == self.obj
+
+    def __lt__(self, other):
+        return other.obj < self.obj
+
+u = merge(ts, st, its)
+q = sorted(u, key = lambda tup:(tup[0]) )
+r = sorted(q, key=lambda tup:(reversor(tup[0]), tup[2])) #Just for ordering such that the most common sequences come first
+
+for i in list(range(10)):
+  print(r[i][2], r[i][0], r[i][1])
